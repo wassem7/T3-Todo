@@ -6,6 +6,32 @@ const CreateTodo = () => {
   const [NewTodo, setNewTodo] = useState("");
   const trpc = api.useContext();
   const { mutate } = api.todo.create.useMutation({
+    onMutate: async () => {
+      await trpc.todo.all.cancel();
+      const previousTodos = trpc.todo.all.getData();
+
+      //optimistically set data
+      trpc.todo.all.setData(undefined, (prev) => {
+        const optimisticTodo = {
+          id: "fake",
+          text: NewTodo,
+          done: false,
+        };
+
+        if (!prev) return [optimisticTodo];
+        return [...prev, optimisticTodo];
+      });
+
+      setNewTodo("");
+      return { previousTodos };
+    },
+
+    onError(error, NewTodo, context) {
+      toast.error("An error occured when creating todo !!");
+      setNewTodo(NewTodo);
+
+      trpc.todo.all.setData(undefined, () => context?.previousTodos);
+    },
     onSettled: async () => {
       await trpc.todo.all.invalidate();
     },

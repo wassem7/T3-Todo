@@ -1,6 +1,7 @@
 import React from "react";
 import type { Todo } from "@/types";
 import { api } from "@/utils/api";
+import toast from "react-hot-toast";
 type Todoprops = {
   todo: Todo;
 };
@@ -11,11 +12,63 @@ const Todo = ({ todo }: Todoprops) => {
     onSettled: async () => {
       await trpc.todo.all.invalidate();
     },
+    onSuccess: (err, { done }) => {
+      if (done) {
+        toast.success("Task completed 🥳🥳");
+      }
+    },
+    onMutate: async ({ id, done }) => {
+      await trpc.todo.all.cancel();
+      const previousTodos = trpc.todo.all.getData();
+
+      //optimistically update toggle data
+      trpc.todo.all.setData(undefined, (prev) => {
+        if (!prev) return previousTodos;
+        return prev.map((t) => {
+          if (t.id === id) {
+            return {
+              ...t,
+              done,
+            };
+          }
+
+          return t;
+        });
+      });
+
+      return { previousTodos };
+    },
+
+    onError(error, NewTodo, context) {
+      toast.error(
+        `An error occured when updating toggle to ${done ? "done" : "undone"}`
+      );
+
+      trpc.todo.all.setData(undefined, () => context?.previousTodos);
+    },
   });
 
   const { mutate: deleteMutation } = api.todo.delete.useMutation({
     onSettled: async () => {
       await trpc.todo.all.invalidate();
+    },
+    onMutate: async (delteId) => {
+      await trpc.todo.all.cancel();
+      const previousTodos = trpc.todo.all.getData();
+
+      //optimistically set data
+      trpc.todo.all.setData(undefined, (prev) => {
+        if (!prev) return previousTodos;
+        return prev.filter((t) => t.id !== delteId);
+      });
+
+      return { previousTodos };
+    },
+
+    onError(error, NewTodo, context) {
+      toast.error("An error occured when deleting todo !!");
+
+      trpc.todo.all.setData(undefined, () => context?.previousTodos);
     },
   });
   return (
@@ -32,7 +85,10 @@ const Todo = ({ todo }: Todoprops) => {
               doneMutation({ id, done: e.target.checked });
             }}
           />
-          <label htmlFor={id} className={`cursor-pointer `}>
+          <label
+            htmlFor={id}
+            className={`cursor-pointer ${done ? "line-through" : ""} `}
+          >
             {text}
           </label>
         </div>
