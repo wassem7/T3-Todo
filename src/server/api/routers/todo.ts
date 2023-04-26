@@ -15,22 +15,7 @@ export const todoRouter = createTRPCRouter({
       },
     });
 
-    console.log(
-      "Todos from prisma ",
-      (await todos).map(({ id, text, done }) => ({ id, text, done }))
-    );
-    return [
-      {
-        id: "fake",
-        text: "Fake todo",
-        done: false,
-      },
-      {
-        id: "fake 2",
-        text: "Fake todo",
-        done: false,
-      },
-    ];
+    return (await todos).map(({ id, text, done }) => ({ id, text, done }));
   }),
 
   create: protectedProcedure
@@ -54,6 +39,24 @@ export const todoRouter = createTRPCRouter({
       return ctx.prisma.todo.delete({
         where: {
           id: input,
+        },
+      });
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        done: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input: { id, done } }) => {
+      return ctx.prisma.todo.update({
+        where: {
+          id: id,
+        },
+        data: {
+          done: done,
         },
       });
     }),
